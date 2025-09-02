@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Student Registration</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon.png">
+  <link rel="manifest" href="manifest.json">
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f4f4f4;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    form, table {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+      width: 95%;
+      max-width: 900px;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    input, select, button {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    table {
+      width: 95%;
+      border-collapse: collapse;
+      text-align: center;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 6px;
+      font-size: 14px;
+    }
+    th {
+      background: #eee;
+    }
+    canvas {
+      border: 1px solid #000;
+      display: block;
+      margin-bottom: 10px;
+      background: #fff;
+      touch-action: none;
+      width: 100%;
+      max-width: 400px;
+      height: auto;
+    }
+    .btn {
+      margin-top: 15px;
+      background: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    .btn:hover {
+      background: #0056b3;
+    }
+    .btn-danger {
+      background: #dc3545;
+    }
+    .btn-danger:hover {
+      background: #a71d2a;
+    }
+  </style>
+</head>
+<body>
+  <h2>Student Registration Form</h2>
+  <form id="regForm">
+    <label>Name</label>
+    <input type="text" id="name" required>
+
+    <label>Grade</label>
+    <select id="grade" required>
+      <option value="">-- Select Grade --</option>
+      <optgroup label="Elementary">
+        <option value="Grade 1">Grade 1</option>
+        <option value="Grade 2">Grade 2</option>
+        <option value="Grade 3">Grade 3</option>
+        <option value="Grade 4">Grade 4</option>
+        <option value="Grade 5">Grade 5</option>
+        <option value="Grade 6">Grade 6</option>
+      </optgroup>
+      <optgroup label="High School">
+        <option value="Grade 7">Grade 7</option>
+        <option value="Grade 8">Grade 8</option>
+        <option value="Grade 9">Grade 9</option>
+        <option value="Grade 10">Grade 10</option>
+      </optgroup>
+      <optgroup label="Senior High School">
+        <option value="Grade 11">Grade 11</option>
+        <option value="Grade 12">Grade 12</option>
+      </optgroup>
+    </select>
+
+    <label>Section</label>
+    <input type="text" id="section" placeholder="Enter Section" required>
+
+    <label>LRN</label>
+    <input type="text" id="lrn" required>
+
+    <label>In Case of Emergency Person</label>
+    <input type="text" id="emergency">
+
+    <label>Address</label>
+    <input type="text" id="address">
+
+    <label>Contact Number</label>
+    <input type="text" id="contact">
+
+    <label>Birthdate</label>
+    <input type="date" id="birthdate">
+
+    <label>Special Condition</label>
+    <input type="text" id="condition">
+
+    <label>Signature</label>
+    <canvas id="signaturePad" width="400" height="150"></canvas>
+    <button type="button" id="clearSignature">Clear Signature</button>
+
+    <label>Image Code</label>
+    <input type="text" id="imageCode" placeholder="Enter Image Code">
+
+    <button type="submit" class="btn">Register</button>
+  </form>
+
+  <table id="dataTable">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Grade</th>
+        <th>Section</th>
+        <th>LRN</th>
+        <th>Emergency Contact</th>
+        <th>Address</th>
+        <th>Contact</th>
+        <th>Birthdate</th>
+        <th>Condition</th>
+        <th>Signature</th>
+        <th>Image Code</th>
+        <th>Entry Time</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <button id="downloadBtn" class="btn">Download Excel</button>
+  <button id="clearAll" class="btn btn-danger">Clear All Entries</button>
+
+  <script>
+    const form = document.getElementById("regForm");
+    const tableBody = document.querySelector("#dataTable tbody");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const clearAllBtn = document.getElementById("clearAll");
+
+    let registrations = [];
+
+    // Signature pad setup
+    const canvas = document.getElementById("signaturePad");
+    const ctx = canvas.getContext("2d");
+    let drawing = false;
+
+    // Prevent iOS from scrolling while signing
+    document.body.addEventListener("touchstart", function(e) {
+      if (e.target.tagName === "CANVAS") e.preventDefault();
+    }, { passive: false });
+
+    canvas.addEventListener("mousedown", () => drawing = true);
+    canvas.addEventListener("mouseup", () => { drawing = false; ctx.beginPath(); });
+    canvas.addEventListener("mousemove", draw);
+    canvas.addEventListener("touchstart", (e) => { drawing = true; e.preventDefault(); });
+    canvas.addEventListener("touchend", () => { drawing = false; ctx.beginPath(); });
+    canvas.addEventListener("touchmove", drawTouch);
+
+    function draw(e) {
+      if (!drawing) return;
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "#000";
+      ctx.lineTo(e.offsetX, e.offsetY);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(e.offsetX, e.offsetY);
+    }
+
+    function drawTouch(e) {
+      if (!drawing) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = e.touches[0].clientX - rect.left;
+      const y = e.touches[0].clientY - rect.top;
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "#000";
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      e.preventDefault();
+    }
+
+    document.getElementById("clearSignature").addEventListener("click", () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    });
+
+    // Handle form submission
+    form.addEventListener("submit", function(e) {
+      e.preventDefault();
+      const now = new Date().toLocaleString();
+
+      const entry = {
+        name: document.getElementById("name").value,
+        grade: document.getElementById("grade").value,
+        section: document.getElementById("section").value,
+        lrn: document.getElementById("lrn").value,
+        emergency: document.getElementById("emergency").value,
+        address: document.getElementById("address").value,
+        contact: document.getElementById("contact").value,
+        birthdate: document.getElementById("birthdate").value,
+        condition: document.getElementById("condition").value,
+        signature: canvas.toDataURL(),
+        imageCode: document.getElementById("imageCode").value,
+        entryTime: now
+      };
+
+      registrations.push(entry);
+      updateTable();
+      form.reset();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    });
+
+    function updateTable() {
+      tableBody.innerHTML = "";
+      registrations.forEach(r => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${r.name}</td>
+          <td>${r.grade}</td>
+          <td>${r.section}</td>
+          <td>${r.lrn}</td>
+          <td>${r.emergency}</td>
+          <td>${r.address}</td>
+          <td>${r.contact}</td>
+          <td>${r.birthdate}</td>
+          <td>${r.condition}</td>
+          <td><img src="${r.signature}" width="80" height="40"></td>
+          <td>${r.imageCode}</td>
+          <td>${r.entryTime}</td>
+        `;
+        tableBody.appendChild(row);
+      });
+    }
+
+    // Download Excel with signatures
+    downloadBtn.addEventListener("click", async function() {
+      if (registrations.length === 0) {
+        alert("⚠ No registrations to export!");
+        return;
+      }
+
+      try {
+        const wb = new ExcelJS.Workbook();
+        const ws = wb.addWorksheet("Registrations");
+
+        ws.addRow(["Name", "Grade", "Section", "LRN", "Emergency", "Address", "Contact", "Birthdate", "Condition", "Signature", "Image Code", "Entry Time"]);
+        ws.getColumn(10).width = 25;
+        ws.properties.defaultRowHeight = 25;
+
+        for (let student of registrations) {
+          ws.addRow([
+            student.name, student.grade, student.section, student.lrn, student.emergency,
+            student.address, student.contact, student.birthdate, student.condition,
+            "", student.imageCode, student.entryTime
+          ]);
+          const row2 = ws.addRow(["", "", "", "", "", "", "", "", "", "", "", ""]);
+          row2.height = 50;
+
+          const imageId = wb.addImage({
+            base64: student.signature,
+            extension: 'png',
+          });
+          ws.addImage(imageId, {
+            tl: { col: 9, row: row2.number - 1 },
+            ext: { width: 160, height: 50 }
+          });
+        }
+
+        // Auto-fit other columns
+        ws.columns.forEach((col, i) => {
+          if (i !== 9) {
+            let max = 10;
+            col.eachCell({ includeEmpty: true }, c => {
+              max = Math.max(max, c.value ? c.value.toString().length : 0);
+            });
+            col.width = max + 2;
+          }
+        });
+
+        const buffer = await wb.xlsx.writeBuffer();
+        saveAs(new Blob([buffer]), "registrations.xlsx", {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        });
+      } catch (err) {
+        alert("⚠ Excel export failed. Please try using Chrome or Safari.");
+        console.error(err);
+      }
+    });
+
+    // Clear all entries
+    clearAllBtn.addEventListener("click", () => {
+      if (confirm("Are you sure you want to delete all entries?")) {
+        registrations = [];
+        updateTable();
+      }
+    });
+  </script>
+</body>
+</html>
